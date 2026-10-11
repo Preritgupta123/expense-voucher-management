@@ -56,6 +56,7 @@ signature or a reason, and the Accounts team monitors every submitted voucher fo
 ```
 .
 ├── README.md
+├── docs/diagrams/                workflow and database diagrams (SVG images used in this README)
 ├── backend/
 │   ├── .env.example
 │   ├── schema_mysql.sql          database schema (run this first)
@@ -177,15 +178,7 @@ development credentials only.
 
 ## Voucher workflow
 
-```mermaid
-stateDiagram-v2
-    [*] --> draft : employee creates
-    draft --> pending_approval : employee submits (signature required)
-    pending_approval --> approved : director approves (signature required)
-    pending_approval --> rejected : director rejects (reason required)
-    approved --> [*]
-    rejected --> [*]
-```
+![Voucher workflow](docs/diagrams/voucher-workflow.svg)
 
 - Only `draft` vouchers can be edited or deleted, and only by the employee who created them.
 - `pending_approval`, `approved` and `rejected` vouchers are read-only for everyone.
@@ -193,40 +186,7 @@ stateDiagram-v2
 
 ## Database schema
 
-```mermaid
-erDiagram
-    USERS ||--o{ VOUCHERS : "creates (employee_id)"
-    USERS ||--o{ VOUCHERS : "reviews (director_id)"
-    USERS {
-        int id PK
-        string name
-        string email UK
-        string password_hash
-        enum role
-        string employee_code
-        timestamp created_at
-    }
-    VOUCHERS {
-        int id PK
-        string voucher_number UK
-        int employee_id FK
-        date voucher_date
-        date expense_date
-        string department
-        string expense_title
-        string expense_category
-        text expense_description
-        decimal amount
-        string employee_signature_path
-        enum status
-        int director_id FK
-        string director_signature_path
-        datetime approval_date
-        text rejection_reason
-        timestamp created_at
-        timestamp updated_at
-    }
-```
+![Database schema](docs/diagrams/database-schema.svg)
 
 The full definition is in [`backend/schema_mysql.sql`](backend/schema_mysql.sql).
 
@@ -414,15 +374,3 @@ The assignment leaves these points open. This is how they were decided.
 - No automated test suite is included in the repository.
 - No email or in-app notifications when a voucher is approved or rejected.
 - No screen for managing users; users are created by the seed script.
-
-<!--
-## Screenshots
-
-Add images to a docs/screenshots folder, then uncomment and edit these lines.
-
-![Login](docs/screenshots/login.png)
-![Employee dashboard](docs/screenshots/employee-dashboard.png)
-![Create voucher](docs/screenshots/create-voucher.png)
-![Director review](docs/screenshots/director-review.png)
-![Accounts vouchers](docs/screenshots/accounts-vouchers.png)
--->
