@@ -1,7 +1,3 @@
-// Builds the WHERE and ORDER BY parts of the voucher list query
-// from the URL query string, for example:
-//   /api/vouchers?status=approved&min_amount=500&sort_by=amount&order=asc
-
 const STATUSES = ['draft', 'pending_approval', 'approved', 'rejected'];
 
 const SORT_COLUMNS = {

@@ -239,7 +239,7 @@ router.post(
     if (!voucher.employee_signature_path) {
       return res.status(400).json({ message: 'Employee signature is required before submitting' });
     }
-    // "AND status = 'draft'" protects against a double click / two requests at once
+
     await pool.query("UPDATE vouchers SET status = 'pending_approval' WHERE id = ? AND status = 'draft'", [
       voucher.id,
     ]);
