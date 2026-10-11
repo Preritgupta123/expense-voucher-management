@@ -5,6 +5,7 @@ const pool = require('./db');
 // The assignment has no signup screen, so we create one test user per role.
 const users = [
   { name: 'Asha Employee', email: 'employee@test.com', role: 'employee', code: 'EMP001' },
+  { name: 'Ravi Employee', email: 'employee2@test.com', role: 'employee', code: 'EMP002' },
   { name: 'Dev Director', email: 'director@test.com', role: 'director', code: null },
   { name: 'Anil Accounts', email: 'accounts@test.com', role: 'accounts', code: null },
 ];

@@ -14,7 +14,9 @@ app.use(express.json());
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', require('./routes/auth'));
 
-app.use('/api/auth', require('./routes/auth'));
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/api/vouchers', require('./routes/vouchers'));
 
 // Unknown URL
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
