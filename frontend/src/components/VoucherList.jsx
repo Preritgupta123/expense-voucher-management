@@ -24,12 +24,6 @@ const SORT_OPTIONS = [
   ['employee_name', 'Employee'],
 ];
 
-// One list screen used by all three roles.
-//   title        heading of the page
-//   basePath     where a row links to, e.g. "/employee/vouchers"
-//   fixedStatus  lock the list to one status (used by "Pending Approvals")
-//   showEmployee show the employee column (Director and Accounts)
-//   actions      extra buttons in the header (e.g. "Create Voucher")
 export default function VoucherList({ title, basePath, fixedStatus, showEmployee, actions }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS); // what is typed in the form
   const [applied, setApplied] = useState(EMPTY_FILTERS); // what was last searched

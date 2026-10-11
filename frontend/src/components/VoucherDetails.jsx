@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import api, { API_URL, getErrorMessage } from '../api';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from './StatusBadge';
+import ReviewPanel from './ReviewPanel';
 import { formatAmount, formatDate, formatDateTime } from '../utils/format';
 
 function Item({ label, wide, children }) {
@@ -20,7 +21,7 @@ function Signature({ path, label }) {
 }
 
 // One details screen for all roles. What you can DO depends on your role and
-// the voucher's status. (Director actions are added in the next step.)
+// the voucher's status: the employee edits drafts, the Director reviews pending ones.
 export default function VoucherDetails() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -174,6 +175,11 @@ export default function VoucherDetails() {
           <Item label="Last updated">{formatDateTime(v.updated_at)}</Item>
         </dl>
       </section>
+
+      {/* Only the Director, and only while the voucher is waiting for a decision */}
+      {user.role === 'director' && v.status === 'pending_approval' && (
+        <ReviewPanel voucherId={v.id} onDone={() => setReloadKey((k) => k + 1)} />
+      )}
 
       {isOwnerDraft && (
         <div className="actions no-print">

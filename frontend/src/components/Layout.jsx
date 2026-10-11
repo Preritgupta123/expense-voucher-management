@@ -2,7 +2,6 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABEL } from '../utils/roles';
 
-// Menu links for each role (from the "Suggested Screens" section of the assignment)
 const NAV = {
   employee: [
     { to: '/employee', label: 'Dashboard', end: true },

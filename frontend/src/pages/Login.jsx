@@ -35,7 +35,7 @@ export default function Login() {
 
     const found = validate();
     setErrors(found);
-    if (Object.keys(found).length) return; // stop: nothing is sent to the server
+    if (Object.keys(found).length) return; 
 
     setLoading(true);
     try {
