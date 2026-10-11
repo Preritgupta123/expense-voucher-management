@@ -4,28 +4,23 @@ const path = require('path');
 const pool = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadSignature } = require('../middleware/upload');
+const { buildVoucherQuery } = require('../utils/voucherQuery');
 
 const router = express.Router();
 
-// Every voucher route needs a logged-in user
+
 router.use(authenticate);
 
-// Reject ids like "abc" or "12abc" before they reach the database
+
 router.param('id', (req, res, next, id) => {
   if (!/^\d+$/.test(id)) return res.status(400).json({ message: 'Invalid voucher id' });
   next();
 });
 
-// ---------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------
-
-// Lets async handlers send their errors to the central error handler
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 const text = (v) => (v === undefined || v === null ? '' : String(v).trim());
 
-// Validation rules from the assignment (section 9)
 function validateVoucherInput(body) {
   const errors = {};
   if (!text(body.department)) errors.department = 'Department is required';
@@ -43,7 +38,6 @@ function validateVoucherInput(body) {
     errors.amount = 'Amount is too large';
   }
 
-  // Column sizes from the schema
   const limits = { department: 100, expense_title: 200, expense_category: 50 };
   for (const [field, max] of Object.entries(limits)) {
     if (text(body[field]).length > max) errors[field] = `Must be ${max} characters or fewer`;
@@ -51,7 +45,6 @@ function validateVoucherInput(body) {
   return errors;
 }
 
-// Keep only the fields an employee may set, trimmed
 function cleanInput(body) {
   return {
     expense_date: text(body.expense_date),
@@ -68,7 +61,6 @@ function deleteStoredFile(storedPath) {
   fs.unlink(path.join(__dirname, '..', '..', storedPath), () => {});
 }
 
-// The employee's OWN voucher only (ownership check)
 async function findOwnVoucher(id, userId) {
   const [rows] = await pool.query('SELECT * FROM vouchers WHERE id = ? AND employee_id = ?', [
     id,
@@ -77,9 +69,6 @@ async function findOwnVoucher(id, userId) {
   return rows[0];
 }
 
-// Shared guard for edit / delete / signature / submit:
-// the voucher must exist, belong to this employee, and still be a draft.
-// On failure it sends the response itself and returns null.
 async function loadEditableVoucher(req, res) {
   const voucher = await findOwnVoucher(req.params.id, req.user.id);
   if (!voucher) {
@@ -93,9 +82,6 @@ async function loadEditableVoucher(req, res) {
   return voucher;
 }
 
-// ---------------------------------------------------------------
-// POST /api/vouchers  -> create a draft (employee)
-// ---------------------------------------------------------------
 router.post(
   '/',
   authorize('employee'),
@@ -106,8 +92,6 @@ router.post(
     }
     const d = cleanInput(req.body);
 
-    // A transaction: either BOTH steps happen or neither does,
-    // so a voucher can never exist without its number.
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -142,30 +126,27 @@ router.post(
   })
 );
 
-// ---------------------------------------------------------------
-// GET /api/vouchers  -> list (employee: own only, director/accounts: all)
-// ---------------------------------------------------------------
 router.get(
   '/',
   wrap(async (req, res) => {
-    const isEmployee = req.user.role === 'employee';
+    const { whereSql, params, orderBy, errors } = buildVoucherQuery(req.query, req.user);
+    if (Object.keys(errors).length) {
+      return res.status(400).json({ message: 'Invalid search or filter', errors });
+    }
     const [rows] = await pool.query(
       `SELECT v.id, v.voucher_number, v.voucher_date, v.expense_date, v.department,
               v.expense_title, v.expense_category, v.amount, v.status,
               v.created_at, v.updated_at, u.name AS employee_name
        FROM vouchers v
        JOIN users u ON u.id = v.employee_id
-       ${isEmployee ? 'WHERE v.employee_id = ?' : ''}
-       ORDER BY v.id DESC`,
-      isEmployee ? [req.user.id] : []
+       ${whereSql}
+       ORDER BY ${orderBy}`,
+      params
     );
     res.json(rows);
   })
 );
 
-// ---------------------------------------------------------------
-// GET /api/vouchers/:id  -> full details
-// ---------------------------------------------------------------
 router.get(
   '/:id',
   wrap(async (req, res) => {
@@ -174,6 +155,8 @@ router.get(
     if (req.user.role === 'employee') {
       scope = 'AND v.employee_id = ?';
       params.push(req.user.id);
+    } else {
+      scope = "AND v.status <> 'draft'"; // same rule as the list: no one else's drafts
     }
     const [rows] = await pool.query(
       `SELECT v.*, e.name AS employee_name, e.employee_code, d.name AS director_name
@@ -183,15 +166,12 @@ router.get(
        WHERE v.id = ? ${scope}`,
       params
     );
-    // 404 (not 403) for someone else's voucher: we don't even reveal it exists
+   
     if (!rows[0]) return res.status(404).json({ message: 'Voucher not found' });
     res.json(rows[0]);
   })
 );
 
-// ---------------------------------------------------------------
-// PUT /api/vouchers/:id  -> edit a draft (employee)
-// ---------------------------------------------------------------
 router.put(
   '/:id',
   authorize('employee'),
@@ -215,9 +195,6 @@ router.put(
   })
 );
 
-// ---------------------------------------------------------------
-// DELETE /api/vouchers/:id  -> delete a draft (employee)
-// ---------------------------------------------------------------
 router.delete(
   '/:id',
   authorize('employee'),
@@ -231,10 +208,6 @@ router.delete(
   })
 );
 
-// ---------------------------------------------------------------
-// POST /api/vouchers/:id/signature  -> upload employee signature
-// Order matters: login -> role -> file upload -> checks on the voucher
-// ---------------------------------------------------------------
 router.post(
   '/:id/signature',
   authorize('employee'),
@@ -242,7 +215,7 @@ router.post(
   wrap(async (req, res) => {
     const voucher = await loadEditableVoucher(req, res);
     if (!voucher) {
-      // The file is already saved by multer, so remove it again
+
       fs.unlink(req.file.path, () => {});
       return;
     }
@@ -256,9 +229,6 @@ router.post(
   })
 );
 
-// ---------------------------------------------------------------
-// POST /api/vouchers/:id/submit  -> draft becomes pending_approval
-// ---------------------------------------------------------------
 router.post(
   '/:id/submit',
   authorize('employee'),
@@ -274,6 +244,78 @@ router.post(
       voucher.id,
     ]);
     res.json({ message: 'Voucher submitted for approval', status: 'pending_approval' });
+  })
+);
+
+router.post(
+  '/:id/approve',
+  authorize('director'),
+  uploadSignature,
+  wrap(async (req, res) => {
+    const discardFile = () => fs.unlink(req.file.path, () => {});
+
+    const [rows] = await pool.query('SELECT id, status FROM vouchers WHERE id = ?', [req.params.id]);
+    const voucher = rows[0];
+    if (!voucher || voucher.status === 'draft') {
+      discardFile();
+      return res.status(404).json({ message: 'Voucher not found' });
+    }
+    if (voucher.status !== 'pending_approval') {
+      discardFile();
+      return res.status(409).json({ message: `Voucher is already ${voucher.status}` });
+    }
+
+    const storedPath = `/uploads/signatures/${req.file.filename}`;
+
+    const [result] = await pool.query(
+      `UPDATE vouchers
+       SET status = 'approved', director_id = ?, director_signature_path = ?, approval_date = NOW()
+       WHERE id = ? AND status = 'pending_approval'`,
+      [req.user.id, storedPath, voucher.id]
+    );
+    if (result.affectedRows === 0) {
+      discardFile();
+      return res.status(409).json({ message: 'Voucher was already reviewed' });
+    }
+    res.json({ message: 'Voucher approved', status: 'approved', director_signature_path: storedPath });
+  })
+);
+
+router.post(
+  '/:id/reject',
+  authorize('director'),
+  wrap(async (req, res) => {
+    const reason = text(req.body?.reason);
+    if (!reason) {
+      return res
+        .status(400)
+        .json({ message: 'Validation failed', errors: { reason: 'Rejection reason is required' } });
+    }
+    if (reason.length > 1000) {
+      return res
+        .status(400)
+        .json({ message: 'Validation failed', errors: { reason: 'Reason must be 1000 characters or fewer' } });
+    }
+
+    const [rows] = await pool.query('SELECT id, status FROM vouchers WHERE id = ?', [req.params.id]);
+    const voucher = rows[0];
+    if (!voucher || voucher.status === 'draft') {
+      return res.status(404).json({ message: 'Voucher not found' });
+    }
+    if (voucher.status !== 'pending_approval') {
+      return res.status(409).json({ message: `Voucher is already ${voucher.status}` });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE vouchers
+       SET status = 'rejected', director_id = ?, rejection_reason = ?
+       WHERE id = ? AND status = 'pending_approval'`,
+      [req.user.id, reason, voucher.id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(409).json({ message: 'Voucher was already reviewed' });
+    }
+    res.json({ message: 'Voucher rejected', status: 'rejected' });
   })
 );
 
