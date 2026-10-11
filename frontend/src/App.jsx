@@ -1,8 +1,11 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { ROLE_HOME } from './utils/roles';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import VoucherList from './components/VoucherList';
+import VoucherForm from './components/VoucherForm';
+import VoucherDetails from './components/VoucherDetails';
 import Login from './pages/Login';
 import Placeholder from './pages/Placeholder';
 import NotFound from './pages/NotFound';
@@ -23,10 +26,23 @@ export default function App() {
       <Route element={<ProtectedRoute allowedRoles={['employee']} />}>
         <Route element={<Layout />}>
           <Route path="/employee" element={<Placeholder title="Employee Dashboard" />} />
-          <Route path="/employee/vouchers" element={<Placeholder title="My Vouchers" />} />
-          <Route path="/employee/vouchers/new" element={<Placeholder title="Create Voucher" />} />
-          <Route path="/employee/vouchers/:id" element={<Placeholder title="Voucher Details" />} />
-          <Route path="/employee/vouchers/:id/edit" element={<Placeholder title="Edit Draft Voucher" />} />
+          <Route
+            path="/employee/vouchers"
+            element={
+              <VoucherList
+                title="My Vouchers"
+                basePath="/employee/vouchers"
+                actions={
+                  <Link className="btn" to="/employee/vouchers/new">
+                    + Create Voucher
+                  </Link>
+                }
+              />
+            }
+          />
+          <Route path="/employee/vouchers/new" element={<VoucherForm />} />
+          <Route path="/employee/vouchers/:id" element={<VoucherDetails />} />
+          <Route path="/employee/vouchers/:id/edit" element={<VoucherForm />} />
         </Route>
       </Route>
 
@@ -34,9 +50,22 @@ export default function App() {
       <Route element={<ProtectedRoute allowedRoles={['director']} />}>
         <Route element={<Layout />}>
           <Route path="/director" element={<Placeholder title="Director Dashboard" />} />
-          <Route path="/director/pending" element={<Placeholder title="Pending Approvals" />} />
-          <Route path="/director/vouchers" element={<Placeholder title="All Vouchers" />} />
-          <Route path="/director/vouchers/:id" element={<Placeholder title="Voucher Details" />} />
+          <Route
+            path="/director/pending"
+            element={
+              <VoucherList
+                title="Pending Approvals"
+                basePath="/director/vouchers"
+                fixedStatus="pending_approval"
+                showEmployee
+              />
+            }
+          />
+          <Route
+            path="/director/vouchers"
+            element={<VoucherList title="All Vouchers" basePath="/director/vouchers" showEmployee />}
+          />
+          <Route path="/director/vouchers/:id" element={<VoucherDetails />} />
         </Route>
       </Route>
 
@@ -44,8 +73,11 @@ export default function App() {
       <Route element={<ProtectedRoute allowedRoles={['accounts']} />}>
         <Route element={<Layout />}>
           <Route path="/accounts" element={<Placeholder title="Accounts Dashboard" />} />
-          <Route path="/accounts/vouchers" element={<Placeholder title="All Vouchers" />} />
-          <Route path="/accounts/vouchers/:id" element={<Placeholder title="Voucher Details" />} />
+          <Route
+            path="/accounts/vouchers"
+            element={<VoucherList title="All Vouchers" basePath="/accounts/vouchers" showEmployee />}
+          />
+          <Route path="/accounts/vouchers/:id" element={<VoucherDetails />} />
         </Route>
       </Route>
 
